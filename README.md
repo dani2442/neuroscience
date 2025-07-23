@@ -45,7 +45,7 @@ In this project we explore the dynamical systems of the brain and try to underst
 - Family Structure: Includes twins and non-twin siblings
 - Access: [ConnectomeDB](https://db.humanconnectome.org), requires user registration and agreement to data usage terms.
 
-![alt text](image.png)
+![alt text](images/image.png)
 
 
 # Models
