@@ -13,4 +13,5 @@ dependencies = [
     "nilearn>=0.12.0",
     "numpy>=2.3.2",
     "torch>=2.8.0",
+    "torchsde>=0.2.6",
 ]
