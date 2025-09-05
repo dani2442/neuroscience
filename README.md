@@ -87,7 +87,7 @@ $$
 I have started using Neural ODEs and its variants to simulate and predict the brain activity. I think the determinist Neural ODE does not suit this problem, since there is a high level stochasticity in the brain and it would be preferable to quantize the uncertainty of the predictions. Hence, I included a stochastic component into the equation resulting in Neural Stochastic Differential Equations (N-SDE):
 
 $$
-d\psi(t) = f_\theta(t, \psi(t)) dt + g_\theta(t, \psi) dW(t) 
+d\psi(t) = f_\theta(t, \psi(t)) dt + g_\theta(t, \psi(t)) dW(t) 
 $$
 
 In our case, we use a model that does not depend on time (autonomous ODE). 
