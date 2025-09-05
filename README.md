@@ -104,10 +104,15 @@ We have identified 39 brain regions that will be studied:
 >Left Auditory Cortex, Right Auditory Cortex, Striate Cortex (Primary Visual Cortex, V1), Left Default Mode Network, Medial Default Mode Network, Frontal Default Mode Network, Right Default Mode Network, Occipital Posterior Cortex, Motor Cortex, Right Dorsolateral Prefrontal Cortex, Right Frontopolar Cortex, Right Parietal Cortex, Right Posterior Temporal Cortex, Basal Ganglia, Left Parietal Cortex, Left Dorsolateral Prefrontal Cortex, Left Frontopolar Cortex, Left Intraparietal Sulcus, Right Intraparietal Sulcus, Left Lateral Occipital Cortex, Visual Cortex, Right Lateral Occipital Cortex, Dorsal Anterior Cingulate Cortex, Ventral Anterior Cingulate Cortex, Right Anterior Insula, Left Superior Temporal Sulcus, Right Superior Temporal Sulcus, Left Temporoparietal Junction, Broca’s Area, Superior Frontal Sulcus, Right Temporoparietal Junction, Right Pars Opercularis, Cerebellum, Dorsal Posterior Cingulate Cortex, Left Insula, Cingulate Cortex, Right Insula, Left Anterior Intraparietal Sulcus, Right Anterior Intraparietal Sulcus.
 
 
-After training a simple Neural SDE for a single patient and record I obtain the following results
+After training a simple Neural SDE for a single patient and record I obtain the following results:
+
+![](images/simulation_part.png)
+
+The variance of the simulation is small in the first seconds and increases as the model becomes less certain (it is nice that we can quantize the uncertainty of the model). Initially, the predictions also seem to fit the ground truth.
+
+The following figure shows the results across the 39 brain regions.
 
 ![](images/simulation_complete.png)
-![](images/simulation_part.png)
 
 # References
 
