@@ -48,7 +48,7 @@ In this project we explore the dynamical systems of the brain and try to underst
 ![alt text](images/image.png)
 
 
-# Models
+# Classical Models
 
 ## 1. Biophysical Models
 
@@ -81,6 +81,31 @@ $$
 $$
   
 ## 4. Deep Learning-based Models
+
+I have started using Neural ODEs and its variants to simulate and predict the brain activity. I think the determinist Neural ODE does not suit this problem, since there is a high level stochasticity in the brain and it would be preferable to quantize the uncertainty of the predictions. Hence, I included a stochastic component into the equation resulting in Neural Stochastic Differential Equations (N-SDE):
+
+$$
+d\psi(t) = f_\theta(t, \psi(t)) dt + g_\theta(t, \psi) dW(t) 
+$$
+
+In our case, we use a model that does not depend on time (autonomous ODE). 
+
+
+# Experiments
+
+An exploratory model cannot make use of the full fMRI since it is huge and would drain all the computational resources. For example, one sample is 61 x 73 x 61 x 176 (x, y, z, t) which is on the order of 1e7 per patient. To circunvent this problem we map each timestep to a single value for each region of the brain. Hence, each timestep we store n values which is not a complete burden to the computer and allows to iterate faster and produce better results.
+
+![](images/model_flow.drawio.png)
+
+
+We have identified 39 brain regions that will be studied: 
+>Left Auditory Cortex, Right Auditory Cortex, Striate Cortex (Primary Visual Cortex, V1), Left Default Mode Network, Medial Default Mode Network, Frontal Default Mode Network, Right Default Mode Network, Occipital Posterior Cortex, Motor Cortex, Right Dorsolateral Prefrontal Cortex, Right Frontopolar Cortex, Right Parietal Cortex, Right Posterior Temporal Cortex, Basal Ganglia, Left Parietal Cortex, Left Dorsolateral Prefrontal Cortex, Left Frontopolar Cortex, Left Intraparietal Sulcus, Right Intraparietal Sulcus, Left Lateral Occipital Cortex, Visual Cortex, Right Lateral Occipital Cortex, Dorsal Anterior Cingulate Cortex, Ventral Anterior Cingulate Cortex, Right Anterior Insula, Left Superior Temporal Sulcus, Right Superior Temporal Sulcus, Left Temporoparietal Junction, Broca’s Area, Superior Frontal Sulcus, Right Temporoparietal Junction, Right Pars Opercularis, Cerebellum, Dorsal Posterior Cingulate Cortex, Left Insula, Cingulate Cortex, Right Insula, Left Anterior Intraparietal Sulcus, Right Anterior Intraparietal Sulcus.
+
+
+After training a simple Neural SDE for a single patient and record I obtain the following results
+
+![](images/simulation_complete.png)
+![](images/simulation_part.png)
 
 # References
 
