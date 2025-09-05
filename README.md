@@ -71,13 +71,15 @@ These describe the collective behavior of populations of neurons:
 These include spatial interactions among neural masses:
 
 - Amari model: Describes pattern formation in neural fields [[2]](#References)
+  
 $$
 \partial_t \psi(t,x) = -\psi(x,t) + \int_R \omega(x-x')f(\psi(t,x'))dx'
 $$
 - Wilson–Cowan model (spatial extension): Originally a neural mass model, but often extended to include spatial dynamics.
 - Jirsa–Haken model (as in your image): A general neural field model used in TVB for simulating whole-brain dynamics [[1]](#references)
+  
 $$
-\dot \psi(x_i, t) = L(\psi(x_i, t)) + \int_{\Gamma_l}g_{ij}S(\Psi(x_j, t-\tau_{ij}))dx_j + \int_{\Gamma_g}G_{ij}\eta_{ij}S(\Psi(x_j, t-\tau_{ij}))dx_j + \omega(t)
+\partial_t \psi(t, x_i) = L(\psi(t, x_i)) + \int_{\Gamma_l}g_{ij}S(\Psi(t-\tau_{ij}, x_j))dx_j + \int_{\Gamma_g}G_{ij}\eta_{ij}S(\Psi(t-\tau_{ij}, x_j))dx_j + \omega(t)
 $$
   
 ## 4. Deep Learning-based Models
