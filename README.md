@@ -95,7 +95,7 @@ In our case, we use a model that does not depend on time (autonomous ODE).
 
 # Experiments
 
-An exploratory model cannot make use of the full fMRI since it is huge and would drain all the computational resources. For example, one sample is 61 x 73 x 61 x 176 (x, y, z, t) which is on the order of 1e7 per patient. To circunvent this problem we map each timestep to a single value for each region of the brain. Hence, each timestep we store n values which is not a complete burden to the computer and allows to iterate faster and produce better results.
+An exploratory model cannot make use of the full fMRI since it is huge and would drain all the computational resources. For example, one sample is 61 x 73 x 61 x 176 (x, y, z, t) which is on the order of $10^7$ per patient. To circunvent this problem we map each timestep to a single value for each region of the brain. Hence, each timestep we store n values which is not a complete burden to the computer and allows to iterate faster and produce better results.
 
 ![](images/model_flow.drawio.png)
 
@@ -113,6 +113,25 @@ The variance of the simulation is small in the first seconds and increases as th
 The following figure shows the results across the 39 brain regions.
 
 ![](images/simulation_complete.png)
+
+
+
+# Hopf Model
+
+
+$$\frac{dx_n}{dt} = \left[ a_n - x_n^2 - y_n^2 \right] x_n - \omega_n y_n 
++ G \sum_{p=1}^{N} C_{np} (x_p - x_n) + \beta \eta_n(t), $$
+
+$$\frac{dy_n}{dt} = \left[ a_n - x_n^2 - y_n^2 \right] y_n + \omega_n x_n 
++ G \sum_{p=1}^{N} C_{np} (y_p - y_n) + \beta \eta_n(t)$$
+
+![alt text](image.png)
+
+
+# Neural Stochastic Differential Equation (SDE)
+
+![alt text](image-1.png)
+
 
 # References
 

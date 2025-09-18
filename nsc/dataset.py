@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset
+import numpy as np
 
 def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
     """
@@ -44,7 +45,12 @@ def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
 
 class VariableLengthSDEData(Dataset):
     def __init__(self, dt: float, state_size: int, length: int = 10, device: str = "cpu"):
-        self.data = data
+        
+        data = []
+        for i in range(30):
+            x = np.load(f"data_processed/adhd/timeseries_{i}.npy").astype(np.float32)
+            data.append(x)
+
         self.dt = dt
         self.length = length
         self.state_size = state_size
@@ -64,7 +70,7 @@ class VariableLengthSDEData(Dataset):
         ts, y = self._data[idx]
         n = len(y)
         m = min(n, self.length)
-        start = random.randint(0, n-m)
+        start = np.randint(0, n-m)
         return ts[start:start+m], y[start:start+m]
 
 
