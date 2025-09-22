@@ -1,14 +1,28 @@
-import torch
-from torch.utils.data import Dataset
-import numpy as np
+import typing as t
+from pathlib import Path
 
-def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
+import numpy as np
+from scipy.signal import hilbert
+import torch
+import random
+from torch.utils.data import Dataset, DataLoader
+
+
+def pad_and_mask(batch_ts: t.List[torch.Tensor], batch_y: t.List[torch.Tensor], eps: float = 1e-5):
+    """Pad variable-length time-series to the same length and produce a mask.
+
+    - batch_ts: list of 1D tensors (T_i,)
+    - batch_y: list of 2D tensors (T_i, d)
+
+    Returns:
+        ts_pad: 1D tensor (T_max,) -- strictly increasing timeline suitable for solver
+        y_pad: tensor (B, T_max, d) -- padded with hold-last-value
+        mask: tensor (B, T_max) -- 1 for valid timesteps, 0 for padded
     """
-    Pads variable-length {ts, y} to the longest T in the batch,
-    ensuring ts_pad is strictly increasing.
-    """
+    if len(batch_ts) == 0:
+        raise ValueError("Empty batch passed to pad_and_mask")
+
     B = len(batch_ts)
-    device = batch_y[0].device
     d = batch_y[0].shape[-1]
     lengths = [t.shape[0] for t in batch_ts]
     T_max = max(lengths)
@@ -18,7 +32,7 @@ def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
         T = len(ts)
         if T < T_max:
             # create strictly increasing padded times after the last valid ts
-            Δ = eps * torch.arange(1, T_max - T + 1, device=ts.device, dtype=ts.dtype)
+            Δ = eps * torch.arange(1, T_max - T + 1, dtype=ts.dtype)
             ts_ext = torch.cat([ts, ts[-1:] + Δ], dim=0)
         else:
             ts_ext = ts
@@ -29,8 +43,8 @@ def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
     ts_pad = torch.stack(ts_pad_list, dim=0).max(dim=0).values  # (T_max,)
 
     # Pad y with last value; create mask
-    y_pad = torch.zeros(B, T_max, d, device=device)
-    mask = torch.zeros(B, T_max, device=device)
+    y_pad = torch.zeros(B, T_max, d,)
+    mask = torch.zeros(B, T_max)
     for i, (y, L) in enumerate(zip(batch_y, lengths)):
         y_pad[i, :L] = y
         if L < T_max:
@@ -39,46 +53,59 @@ def pad_and_mask(batch_ts, batch_y, eps: float = 1e-5):
 
     return ts_pad, y_pad, mask
 
-# ----------------------------
-# Synthetic dataset (variable-length)
-# ----------------------------
 
-class VariableLengthSDEData(Dataset):
-    def __init__(self, dt: float, state_size: int, length: int = 10, device: str = "cpu"):
-        
-        data = []
-        for i in range(30):
-            x = np.load(f"data_processed/adhd/timeseries_{i}.npy").astype(np.float32)
-            data.append(x)
-
+class TimeSeriesDataset(Dataset):
+    def __init__(self, data: list[np.ndarray], dt: float, state_size: int, length: int = 10, n_repeat: int = 10):
+        self.data = data
         self.dt = dt
         self.length = length
         self.state_size = state_size
-        self.device = torch.device(device)
-        #self._data = [self._sample_path(idx) for idx in range(len(self.data))]
-        self._data = [self._sample_path(0) for _ in range(1024)]
+        self.n_repeat = n_repeat
+        self._data = [self._sample_path(id) for id in range(len(data))]
     
     def _sample_path(self, idx: int):
-        y = torch.tensor(self.data[idx], device=self.device)
-        ts = self.dt*torch.arange(y.shape[0], device=self.device)
-        return ts, y
+        y = torch.tensor(self.data[idx])
+        h = torch.tensor(hilbert(self.data[idx], axis=0).imag)
+        ts = self.dt*torch.arange(y.shape[0])
+        return ts, y, h
 
     def __len__(self):
-        return len(self._data)
+        return len(self._data)*self.n_repeat
 
     def __getitem__(self, idx):
-        ts, y = self._data[idx]
+        ts, y, h = self._data[idx%len(self._data)]
         n = len(y)
         m = min(n, self.length)
-        start = np.randint(0, n-m)
-        return ts[start:start+m], y[start:start+m]
+        start = random.randint(0, n-m)
+        return ts[start:start+m], y[start:start+m], h[start:start+m]
+    
+    @staticmethod
+    def from_directory(cfg, pattern: str = "*.npy"):
+        p = Path(cfg.data_dir)
+        files = []
+        dir = list(p.glob(pattern))
+        print(f"Found {len(dir)} files in {p} matching {pattern}")
+        for file in dir:
+            files.append(np.load(file))
+        return TimeSeriesDataset(files, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length, n_repeat=cfg.n_repeat)
+
+    @staticmethod
+    def collate_fn(batch):
+        # batch: list of (ts, y)
+        ts_list = [b[0] for b in batch]
+        y_list = [b[1] for b in batch]
+        h_list = [b[2] for b in batch]
+        ts_pad, y_pad_0, mask_0 = pad_and_mask(ts_list, y_list)
+        ts_pad, y_pad_1, mask_1 = pad_and_mask(ts_list, h_list)
+
+        x0 = torch.stack([y[0] for y in y_list], dim=0)  # (B, d)
+        y0 = torch.stack([h[0] for h in h_list], dim=0)  # (B, d)
+
+        y_pad = torch.cat([y_pad_0, y_pad_1], dim=-1)
+        x0 = torch.cat([x0, y0], dim=-1)  # shape (B, 2d)
+        return ts_pad, y_pad, mask_0, x0
+    
 
 
-def collate_variable(batch):
-    # batch: list of (ts, y)
-    ts_list = [b[0] for b in batch]
-    y_list = [b[1] for b in batch]
-    ts_pad, y_pad, mask = pad_and_mask(ts_list, y_list)
-    # x0 (initial states) from first timepoint of each sample
-    x0 = torch.stack([y[0] for y in y_list], dim=0)  # (B, d)
-    return ts_pad, y_pad, mask, x0
+    def dataloader(self, batch_size: int = 32, shuffle: bool = True, **kwargs) -> DataLoader:
+        return DataLoader(self, batch_size=batch_size, shuffle=shuffle, collate_fn=self.collate_fn, **kwargs)

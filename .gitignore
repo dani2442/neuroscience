@@ -10,3 +10,7 @@ wheels/
 .venv
 data/
 data_processed/
+runs/
+wandb/
+
+*.log
