@@ -24,18 +24,12 @@ from nsc.model import make_model
 from nsc.training import TrainerConfig
 
 
-def load_checkpoint(ckpt_path: Path, device: torch.device = torch.device("cpu")):
-    data = torch.load(ckpt_path, map_location=device)
-    state = data.get('model_state_dict', data)
-    cfg_dict = data.get('cfg', {})
-    return state, cfg_dict
-
 
 def find_checkpoint(path: Path) -> Path:
     # prefer explicit file, otherwise pick the latest best_epoch_*.pt in the directory
     if path.is_file():
         return path
-    pts = sorted(path.glob('best_epoch_*.pt'))
+    pts = sorted(path.glob('best_model*.pt'))
     if not pts:
         raise SystemExit(f"No checkpoint files found in: {path}")
     return pts[-1]
@@ -45,10 +39,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str, default='runs', help='Checkpoint file or directory containing best_epoch_*.pt')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
-    parser.add_argument('--n-samples', type=int, default=10, help='Number of stochastic sample paths to simulate')
+    parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--ids', type=str, default='0,1,2,3,4,5,6,7,8', help='Comma separated variable indices to plot')
+    parser.add_argument("--num-patients", type=int, default=1)
+    #parser.add_argument('--ids', type=str, default='0,1,2,3,4,5,6,7,8', help='Comma separated variable indices to plot')
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -60,7 +55,8 @@ def main():
     state_dict, cfg_dict = chk["model_state_dict"], chk.get("cfg", None)
 
     # Build a TrainerConfig from saved cfg when available; else use defaults
-    cfg_dict['length'] = 150
+    cfg_dict['length_train'] = 150
+    cfg_dict['length_val'] = 150
     if cfg_dict:
         cfg = TrainerConfig(**cfg_dict)
     else:
@@ -83,29 +79,36 @@ def main():
     model.eval()
 
     # load dataset and get one batch (we'll use small batch_size=1 for visualization)
-    ds = TimeSeriesDataset.from_directory(cfg, pattern='timeseries_*.npy')
-    n = len(ds)
-    n_train = int(0.8 * n)
-    val_ds = torch.utils.data.Subset(ds, list(range(n_train, n)))
-    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=1, shuffle=False, collate_fn=ds.collate_fn)
-    ts, y, mask, x0 = next(iter(val_loader))
+    # load dataset on CPU for indexing; Trainer will move model/data to configured device
+    train_ds, val_ds = TimeSeriesDataset.from_directory(cfg, pattern="timeseries_*.npy", max_num=args.num_patients)
+    # simple split
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=1, shuffle=True, collate_fn=train_ds.collate_fn)
+    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=1, shuffle=False, collate_fn=val_ds.collate_fn)
+    ts, y, mask, x0 = next(iter(train_loader))
 
     # Create BrownianInterval for multiple samples
     # repeat x0 to match n_samples
     x0_batch = x0.repeat(args.n_samples, 1)
-    bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=(args.n_samples, cfg.brownian_size), device=device, dt=cfg.dt, levy_area_approximation="space-time")
+    if cfg.noise_type=='diagonal':
+        size = (args.n_samples, cfg.state_size)
+    else:
+        size = (args.n_samples, cfg.brownian_size)
+    bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=size, device=device, dt=cfg.dt, levy_area_approximation="space-time")
 
     with torch.no_grad():
+        ts = ts.to(device)
+        y = y.to(device)
+        x0_batch = x0_batch.to(device)
         y_sim = torchsde.sdeint(model, x0_batch, ts, bm=bm, dt=cfg.dt_num)
-    ys = y_sim.numpy()
-    y = y.numpy()
-    ts = ts.numpy()
+    ys = y_sim.cpu().numpy()
+    y = y.cpu().numpy()
+    ts = ts.cpu().numpy()
 
     mean_sim = ys.mean(axis=0)  # (T, d)
     q5, q25, q75, q95 = np.percentile(ys, [5, 25, 75, 95], axis=0)
 
     # heatmap of mean simulated vs ground truth for first few dims
-    ids = [int(i) for i in args.ids.split(',') if i.strip() != '']
+    ids = np.arange(0, 90, 10)
     n_ids = len(ids)
     cols = 2
     rows = math.ceil(n_ids / cols)

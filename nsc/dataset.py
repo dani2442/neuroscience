@@ -80,14 +80,24 @@ class TimeSeriesDataset(Dataset):
         return ts[start:start+m], y[start:start+m], h[start:start+m]
     
     @staticmethod
-    def from_directory(cfg, pattern: str = "*.npy"):
+    def from_directory(cfg, pattern: str = "*.npy", max_num: int = 100):
         p = Path(cfg.data_dir)
-        files = []
-        dir = list(p.glob(pattern))
+        
+        files_train = []
+        files_test = []
+
+        dir = sorted(list(p.glob(pattern)))[:max_num]
         print(f"Found {len(dir)} files in {p} matching {pattern}")
         for file in dir:
-            files.append(np.load(file))
-        return TimeSeriesDataset(files, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length, n_repeat=cfg.n_repeat)
+            x = np.load(file)
+            i = int(x.shape[0] * cfg.split)
+            files_train.append(x[:i])
+            files_test.append(x[i:])
+
+        train_dataset = TimeSeriesDataset(files_train, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_train, n_repeat=cfg.n_repeat)
+        test_dataset = TimeSeriesDataset(files_test, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_val, n_repeat=cfg.n_repeat)
+
+        return train_dataset, test_dataset
 
     @staticmethod
     def collate_fn(batch):

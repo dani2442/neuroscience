@@ -26,34 +26,42 @@ class LinearSDE(nn.Module):
 
 
 class MLPSDE(nn.Module):
-    def __init__(self, state_size: int, brownian_size: int, hidden_size: int, *args, **kwargs):
+    def __init__(self, state_size: int, brownian_size: int, hidden_size: int, noise_type: str, *args, **kwargs):
         super().__init__()
 
-        self.noise_type = "additive"
+        self.noise_type = noise_type
         self.sde_type = "ito"
 
         self.state_size = int(state_size)
-        self.drift = nn.Sequential(
-            nn.Linear(state_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, state_size),
-        )
-        self.C = nn.Parameter(torch.randn((state_size, brownian_size)))
+        
+        layers = [nn.Linear(state_size, hidden_size), nn.Tanh()]
+        for _ in range(kwargs['hidden_layers']):
+            layers.extend([nn.Linear(hidden_size, hidden_size), nn.Tanh()])
+        layers.append(nn.Linear(hidden_size, state_size))
+
+        self.drift = nn.Sequential(*layers)
+
+        if noise_type=="additive":
+            self.C = nn.Parameter(torch.randn((state_size, brownian_size)))
+        elif noise_type=="diagonal":
+            self.C = nn.Parameter(torch.randn(state_size))
 
     def f(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         # apply drift pointwise over batch
         return self.drift(y)
 
     def g(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return self.C.unsqueeze(0).expand(y.size(0), -1, -1)
+        if self.noise_type == "additive":
+            return self.C.unsqueeze(0).expand(y.size(0), -1, -1)
+        elif self.noise_type == "diagonal":
+            return self.C.repeat(y.size(0), 1)
+
 
 
 def make_model(name: str, **kwargs) -> t.Callable:
     name = name.lower()
     if name == "linear":
         return LinearSDE(**kwargs)
-    if name in {"mlp", "mlpsde", "mlp_sde"}:
+    elif name in {"mlp", "mlpsde", "mlp_sde"}:
         return MLPSDE(**kwargs)
     raise ValueError(f"Unknown model name: {name}")
