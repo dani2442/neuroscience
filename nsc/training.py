@@ -32,6 +32,7 @@ def masked_mse(pred, target, mask, loss_fn: str = "mse") -> torch.Tensor:
 class TrainerConfig:
     epochs: int = 50
     lr: float = 1e-3
+    lr_end: float = 1e-4
     method: str = "euler"
     dt: float = 1
     num_patients: int = 100
@@ -44,6 +45,7 @@ class TrainerConfig:
     batch_size: int = 32
     noise_type: str = 'additive'
     n_repeat: int = 50
+    load_ckpt: t.Optional[str] = None
     brownian_size: int = 10
     hidden_size: int = 64
     loss: str = "mse"
@@ -51,12 +53,14 @@ class TrainerConfig:
     seed: t.Optional[int] = None
     device: t.Union[str, torch.device] = "cpu"
     grad_clip: float = 10.0
+    activation: str = "tanh"
     wandb_project: t.Optional[str] = None
     wandb_run_name: t.Optional[str] = None
     data_dir: str = "data_processed/ts_young/"
     output_dir: str = "runs"
     save_best: bool = True
-    scheduler_min_lr: float = 1e-3
+    adjoint: bool = False
+    sde_type: str = "ito"
 
 
 class Trainer:
@@ -67,6 +71,7 @@ class Trainer:
         self.cfg = cfg
         self.device = cfg.device
         self.model.to(self.device)
+        self.sdeint_fn = torchsde.sdeint_adjoint if cfg.adjoint else torchsde.sdeint
         self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.lr)
         # Run name is the date and time so we use a timestamp %Y%m%d-%H%M%S
         self.run_name = f"run_{time.strftime('%Y%m%d-%H%M%S')}"
@@ -86,7 +91,7 @@ class Trainer:
         os.makedirs(cfg.output_dir, exist_ok=True)
 
         # setup learning rate scheduler if requested
-        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=max(1, cfg.epochs), eta_min=cfg.scheduler_min_lr)
+        self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=max(1, cfg.epochs), eta_min=cfg.lr_end)
         
     def train_epoch(self) -> float:
         self.model.train()
@@ -99,7 +104,7 @@ class Trainer:
             x0 = x0.to(self.device)
 
             self.optimizer.zero_grad()
-            x_sim = torchsde.sdeint(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
+            x_sim = self.sdeint_fn(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
             x_sim = x_sim.transpose(0, 1)
 
             mse_loss = masked_mse(x_sim, y_pad, mask, loss_fn=self.cfg.loss)
@@ -137,7 +142,7 @@ class Trainer:
                 mask = mask.to(self.device)
                 x0 = x0.to(self.device)
 
-                x_sim = torchsde.sdeint(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
+                x_sim = self.sdeint_fn(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
                 x_sim = x_sim.transpose(0, 1)
                 loss = masked_mse(x_sim, y_pad, mask, loss_fn=self.cfg.loss)
                 total_loss += float(loss.item())

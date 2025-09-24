@@ -55,18 +55,19 @@ def pad_and_mask(batch_ts: t.List[torch.Tensor], batch_y: t.List[torch.Tensor], 
 
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, data: list[np.ndarray], dt: float, state_size: int, length: int = 10, n_repeat: int = 10):
+    def __init__(self, data: list[np.ndarray], dt: float, state_size: int, length: int = 10, n_repeat: int = 10, device: str = 'cpu'):
         self.data = data
         self.dt = dt
         self.length = length
+        self.device = device
         self.state_size = state_size
         self.n_repeat = n_repeat
         self._data = [self._sample_path(id) for id in range(len(data))]
     
     def _sample_path(self, idx: int):
-        y = torch.tensor(self.data[idx])
-        h = torch.tensor(hilbert(self.data[idx], axis=0).imag)
-        ts = self.dt*torch.arange(y.shape[0])
+        y = torch.tensor(self.data[idx]).to(self.device)
+        h = torch.tensor(hilbert(self.data[idx], axis=0).imag).to(self.device)
+        ts = self.dt*torch.arange(y.shape[0]).to(self.device)
         return ts, y, h
 
     def __len__(self):
@@ -88,14 +89,15 @@ class TimeSeriesDataset(Dataset):
 
         dir = sorted(list(p.glob(pattern)))[:max_num]
         print(f"Found {len(dir)} files in {p} matching {pattern}")
+        print("The first n files are: ", dir[:5])
         for file in dir:
             x = np.load(file)
             i = int(x.shape[0] * cfg.split)
             files_train.append(x[:i])
             files_test.append(x[i:])
 
-        train_dataset = TimeSeriesDataset(files_train, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_train, n_repeat=cfg.n_repeat)
-        test_dataset = TimeSeriesDataset(files_test, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_val, n_repeat=cfg.n_repeat)
+        train_dataset = TimeSeriesDataset(files_train, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_train, n_repeat=cfg.n_repeat, device=cfg.device)
+        test_dataset = TimeSeriesDataset(files_test, dt=cfg.dt, state_size=cfg.state_size, length=cfg.length_val, n_repeat=cfg.n_repeat, device=cfg.device)
 
         return train_dataset, test_dataset
 

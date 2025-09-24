@@ -37,7 +37,7 @@ def find_checkpoint(path: Path) -> Path:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str, default='runs', help='Checkpoint file or directory containing best_epoch_*.pt')
+    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20250924-113704.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
     parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -84,7 +84,7 @@ def main():
     # simple split
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=1, shuffle=True, collate_fn=train_ds.collate_fn)
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=1, shuffle=False, collate_fn=val_ds.collate_fn)
-    ts, y, mask, x0 = next(iter(train_loader))
+    ts, y, mask, x0 = next(iter(val_loader))
 
     # Create BrownianInterval for multiple samples
     # repeat x0 to match n_samples
