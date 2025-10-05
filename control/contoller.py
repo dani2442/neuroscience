@@ -46,6 +46,10 @@ class OptimalRoute(nn.Module):
         Wc_reg = Wc + regularize * torch.eye(A.shape[0])
         self.Wc_inv = torch.inverse(Wc_reg)
 
+    def cost(self, x):
+        d = (self.x_target -  x @ self.m_exp.T)
+        return d @ self.Wc_inv @ d.T
+
     def forward(self, t, y):
         s = self.T - t
         term = torch.matrix_exp(self.A.T * s)

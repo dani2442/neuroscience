@@ -2,14 +2,26 @@ import torch
 import torch.nn as nn
 import lightning as pl
 
-from control.neuralsde import SDEWrapper
+from control.neuralsde import SDEWrapper, MLPSDE
+from control.contoller import StepController
 
 class SDELightningModule(pl.LightningModule):
-    def __init__(self, base_model, 
+    def __init__(self, state_size, control_size, hidden_size, hidden_layers, controller_type='step', 
                  lr=1e-3, method='euler', dt=0.1):
         super().__init__()
         self.save_hyperparameters(ignore=["base_model"])
         
+        if controller_type == 'step':
+            control_input = StepController()
+
+        base_model = MLPSDE(state_size, 
+                            control_size, 
+                            control_input=control_input, 
+                            brownian_size=1, 
+                            hidden_size=hidden_size, 
+                            hidden_layers=hidden_layers, 
+                            noise_type="diagonal")
+
         # Wrap SDE for integration
         self.sde_wrapper = SDEWrapper(
             base_model,
