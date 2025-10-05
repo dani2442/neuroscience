@@ -1,0 +1,3 @@
+dt: 0.1
+lr: 0.001
+method: euler

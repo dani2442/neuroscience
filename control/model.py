@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 class LinearControlSDE(torch.nn.Module):
     """
@@ -16,7 +17,7 @@ class LinearControlSDE(torch.nn.Module):
     noise_type = 'diagonal'
     sde_type = 'ito'
     
-    def __init__(self, A, B, control_input: callable = None, sigma=0.1):
+    def __init__(self, A, B, control_input: callable = None, sigma=0.):
         """
         Args:
             A: System matrix (n x n)
@@ -28,31 +29,31 @@ class LinearControlSDE(torch.nn.Module):
         self.B = B
         self.sigma = sigma
         self.state_size = A.shape[0]
-        if control_input is not None:
-            self.control_input = control_input
+        self.control_size = B.shape[1]
+        self.control_input = control_input
         
     def f(self, t, y):
         """Drift function: Ax + Bu"""
         # Get control input at time t
-        u = self.control_input(t, y)
-        return torch.matmul(y, self.A.T) + torch.matmul(u, self.B.T)
+        dx = torch.matmul(y, self.A.T)
+
+        if self.control_input is not None:
+            u = self.control_input(t, y)
+            dx += torch.matmul(u, self.B.T)
+        
+        return dx
     
     def g(self, t, y):
         """Diffusion function: σ"""
         batch_size = y.shape[0]
-        if isinstance(self.sigma, (int, float)):
-            return self.sigma * torch.ones(batch_size, self.state_size, 
+        #if isinstance(self.sigma, (int, float)):
+        state_diffusion = self.sigma * torch.ones(batch_size, self.state_size, 
                                           device=y.device, dtype=y.dtype)
-        return self.sigma.expand(batch_size, -1)
-    
-    def control_input(self, t, y):
-        """
-        Define control law here. Override this method for custom control.
-        Default: zero control
-        """
-        batch_size = y.shape[0]
-        control_size = self.B.shape[1]
-        return torch.zeros(batch_size, control_size, device=y.device, dtype=y.dtype)
+        # control_diffusion = torch.zeros(batch_size, self.control_size,
+        #                                device=y.device, dtype=y.dtype)
+        
+        return state_diffusion #torch.cat([state_diffusion, control_diffusion], dim=1)
+        #return self.sigma.expand(batch_size, -1)
 
 
 
@@ -113,3 +114,5 @@ class SpringMassDamperSDE(LinearControlSDE):
         u = -Kp * x1 - Kd * x2
         
         return u
+    
+
