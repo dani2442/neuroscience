@@ -15,3 +15,5 @@ wandb/
 
 *.log
 checkpoints
+lighting_logs
+.env
