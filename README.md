@@ -45,8 +45,6 @@ In this project we explore the dynamical systems of the brain and try to underst
 - Family Structure: Includes twins and non-twin siblings
 - Access: [ConnectomeDB](https://db.humanconnectome.org), requires user registration and agreement to data usage terms.
 
-![alt text](images/image.png)
-
 
 # Classical Models
 
@@ -106,7 +104,7 @@ We have identified 39 brain regions that will be studied:
 
 After training a simple Neural SDE for a single patient and record I obtain the following results:
 
-![](images/simulation_part.png)
+![](images/sde_simulation_best_model_run_.png)
 
 The variance of the simulation is small in the first seconds and increases as the model becomes less certain (it is nice that we can quantize the uncertainty of the model). Initially, the predictions also seem to fit the ground truth.
 
@@ -125,12 +123,19 @@ $$\frac{dx_n}{dt} = \left[ a_n - x_n^2 - y_n^2 \right] x_n - \omega_n y_n
 $$\frac{dy_n}{dt} = \left[ a_n - x_n^2 - y_n^2 \right] y_n + \omega_n x_n 
 + G \sum_{p=1}^{N} C_{np} (y_p - y_n) + \beta \eta_n(t)$$
 
-![alt text](image.png)
+![alt text](images/image.png)
 
 
 # Neural Stochastic Differential Equation (SDE)
 
-![alt text](image-1.png)
+
+Test Set results:
+
+Model #1
+![](images/sde_simulation_best_model_run_20250924-143800.png)
+
+Model #2
+![](images/sde_simulation_best_model_run_20250924-160953.png)
 
 
 # References
