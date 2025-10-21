@@ -26,17 +26,28 @@ class LinearSDE(nn.Module):
 
 
 class MLPSDE(nn.Module):
-    def __init__(self, state_size: int, brownian_size: int, hidden_size: int, noise_type: str, *args, **kwargs):
+    def __init__(self, state_size: int, brownian_size: int, activation: str, hidden_size: int, noise_type: str, sde_type: str, *args, **kwargs):
         super().__init__()
 
         self.noise_type = noise_type
-        self.sde_type = "ito"
+        self.sde_type = sde_type
 
         self.state_size = int(state_size)
+
+        class LipSwish(nn.Module):
+            def forward(self, x):
+                return 0.909 * torch.nn.functional.silu(x)
+
+        if activation == 'silu':
+            activation_fn = LipSwish()
+        elif activation == 'tanh':
+            activation_fn = nn.Tanh()
+        elif activation == 'relu':
+            activation_fn = nn.ReLU()
         
-        layers = [nn.Linear(state_size, hidden_size), nn.Tanh()]
+        layers = [nn.Linear(state_size, hidden_size), activation_fn]
         for _ in range(kwargs['hidden_layers']):
-            layers.extend([nn.Linear(hidden_size, hidden_size), nn.Tanh()])
+            layers.extend([nn.Linear(hidden_size, hidden_size), activation_fn])
         layers.append(nn.Linear(hidden_size, state_size))
 
         self.drift = nn.Sequential(*layers)
@@ -54,7 +65,7 @@ class MLPSDE(nn.Module):
         if self.noise_type == "additive":
             return self.C.unsqueeze(0).expand(y.size(0), -1, -1)
         elif self.noise_type == "diagonal":
-            return self.C.repeat(y.size(0), 1)
+            return self.C.unsqueeze(0).expand(y.size(0), -1)
 
 
 
