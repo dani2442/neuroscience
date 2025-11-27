@@ -66,7 +66,8 @@ class TimeSeriesDataset(Dataset):
     
     def _sample_path(self, idx: int):
         y = torch.tensor(self.data[idx]).to(self.device)
-        h = torch.tensor(hilbert(self.data[idx], axis=0).imag).to(self.device)
+        h = torch.tensor(np.gradient(self.data[idx], self.dt, axis=0)).to(self.device) # Calculate derivative
+        #h = torch.tensor(hilbert(self.data[idx], axis=0).imag).to(self.device)
         ts = self.dt*torch.arange(y.shape[0]).to(self.device)
         return ts, y, h
 
