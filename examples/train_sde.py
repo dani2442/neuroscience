@@ -6,13 +6,11 @@ Usage:
 Ensure required packages are installed (see pyproject.toml).
 """
 from pathlib import Path
-
 import argparse
-
 import torch
 
 from nsc.dataset import TimeSeriesDataset
-from nsc.model import make_model
+from nsc.nsde import make_model
 from nsc.training import Trainer, TrainerConfig
 
 
