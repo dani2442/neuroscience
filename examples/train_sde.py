@@ -10,7 +10,7 @@ import argparse
 import torch
 
 from nsc.dataset import TimeSeriesDataset
-from nsc.nsde import make_model
+from nsc.utils import set_seed, make_model
 from nsc.training import Trainer, TrainerConfig
 
 
