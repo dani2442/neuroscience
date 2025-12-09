@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--activation", type=str, default="silu")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lr-end", type=float, default=1e-3)
+    parser.add_argument("--model", type=str, default="mlp")
     parser.add_argument("--method", type=str, default='midpoint')
     parser.add_argument("--sde-type", type=str, default="stratonovich")
     parser.add_argument("--reg-lambda", type=float, default=1e-4)
@@ -39,7 +40,7 @@ def main():
     parser.add_argument("--dt", type=float, default=1.0)
     parser.add_argument("--num-patients", type=int, default=1)
     parser.add_argument("--grad-clip", type=float, default=None)
-    parser.add_argument("--loss", type=str, default="mae", choices=["mse", "mae"])
+    parser.add_argument("--loss", type=str, default="mse", choices=["mse", "mae"])
     parser.add_argument("--dt-num", type=float, default=0.1)
     parser.add_argument("--wandb_project", type=str, default="neuroscience", help="wandb project name (optional)")
     args = parser.parse_args()
@@ -48,9 +49,8 @@ def main():
     data_dir = Path(args.data_dir)
     cfg = TrainerConfig(**dict_args)
 
-    if not data_dir.exists():
-        raise SystemExit(f"Data directory not found: {data_dir}")
-
+    assert data_dir.exists(), f"Data directory not found: {data_dir}"
+    set_seed(args.seed)
     print(f"Using device: {args.device}")
 
     # load dataset on CPU for indexing; Trainer will move model/data to configured device

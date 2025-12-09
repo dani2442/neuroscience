@@ -20,8 +20,9 @@ import torchsde
 from torchsde import BrownianInterval
 
 from nsc.dataset import TimeSeriesDataset
-from nsc.model import make_model
+from nsc.nsde import make_model
 from nsc.training import TrainerConfig
+from nsc.utils import plot_heatmap, plot_quantile_trajectories
 
 
 
@@ -33,6 +34,40 @@ def find_checkpoint(path: Path) -> Path:
     if not pts:
         raise SystemExit(f"No checkpoint files found in: {path}")
     return pts[-1]
+
+
+def compute_metrics(y_true: np.ndarray, y_sim: np.ndarray) -> dict:
+    """Compute MSE and KL (approx via NLL) for different time intervals.
+    
+    Args:
+        y_true: (1, T, D)
+        y_sim: (S, T, D)
+    """
+    T = y_true.shape[1]
+    # Define intervals
+    intervals = {
+        'short': slice(0, T // 3),
+        'med': slice(T // 3, 2 * T // 3),
+        'long': slice(2 * T // 3, T),
+        'full': slice(0, T)
+    }
+    
+    metrics = {}
+    mu_sim = y_sim.mean(axis=0) # (T, D)
+    std_sim = y_sim.std(axis=0) + 1e-6 # (T, D)
+    
+    for name, sl in intervals.items():
+        # MSE: || mu_sim - y_true ||^2
+        mse = np.mean((mu_sim[sl] - y_true[0, sl])**2)
+        metrics[f'mse_{name}'] = mse
+        
+        # KL approx (NLL): -log N(y_true | mu_sim, std_sim)
+        # = 0.5 * log(2pi) + log(sigma) + 0.5 * ((y - mu)/sigma)^2
+        nll = 0.5 * np.log(2 * np.pi) + np.log(std_sim[sl]) + \
+              0.5 * ((y_true[0, sl] - mu_sim[sl]) / std_sim[sl])**2
+        metrics[f'kl_{name}'] = np.mean(nll)
+        
+    return metrics
 
 
 def main():
@@ -101,69 +136,25 @@ def main():
         x0_batch = x0_batch.to(device)
         y_sim = torchsde.sdeint(model, x0_batch, ts, bm=bm, dt=cfg.dt_num)
     ys = y_sim.cpu().numpy()
+    # Transpose to (S, T, D) for easier handling
+    ys = np.transpose(ys, (1, 0, 2))
     y = y.cpu().numpy()
     ts = ts.cpu().numpy()
 
     mean_sim = ys.mean(axis=0)  # (T, d)
-    q5, q25, q75, q95 = np.percentile(ys, [5, 25, 75, 95], axis=0)
 
     # heatmap of mean simulated vs ground truth for first few dims
     ids = np.arange(0, 90, 10)
-    n_ids = len(ids)
-    cols = 2
-    rows = math.ceil(n_ids / cols)
-    fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 3 * rows))
-    axes = np.array(axes).reshape(-1)
-
-    for ax_i, var_idx in enumerate(ids):
-        ax = axes[ax_i]
-        im = ax.imshow(mean_sim[:, var_idx:var_idx+1].T, aspect='auto')
-        ax.set_title(f"Mean sim (var {var_idx})")
-        ax.set_ylabel('dim')
-        ax.set_xlabel('time')
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-
-    # hide unused axes
-    for k in range(len(ids), len(axes)):
-        axes[k].set_visible(False)
-
-    plt.tight_layout()
-    plt.show()
+    plot_heatmap(mean_sim, ids)
 
     # Quantile plots for selected variables
-    n_rows, n_cols = 3, 3
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15,10), squeeze=False)
-    ids = np.arange(0, 90, 10)
+    plot_quantile_trajectories(ts, y, ys, ids, output_path=f'images/sde_simulation_{ckpt_path.stem}.png')
 
-    for i, var_idx in enumerate(ids):
-        row, col = divmod(i, n_cols)
-        ax = axes[row, col]
-        
-        yi = ys[:, :, var_idx].transpose(1,0)  # (N_samples, T)
-        mean = yi.mean(axis=0)
-        q5, q10, q25, q75, q90, q95 = np.percentile(yi, [5, 10, 25, 75, 90, 95], axis=0)
-
-        ax.fill_between(ts, q5, q95, color='royalblue', alpha=0.15)
-        ax.fill_between(ts, q10, q90, color='royalblue', alpha=0.2)
-        ax.fill_between(ts, q25, q75, color='royalblue', alpha=0.35)
-        
-        for j in range(args.n_samples):
-            ax.plot(ts, yi[j], color="purple", alpha=0.2, linewidth=1)
-    
-        # Mean and ground truth
-        ax.plot(ts, mean, color="black", linewidth=1, label="Simulated")
-        ax.plot(ts, y[0, :, var_idx], color="red", linewidth=1, label="Ground truth")
-        
-        ax.set_title(f"ID {var_idx}")
-        ax.set_xlabel("t")
-        ax.set_ylabel(r"$Y_t$")
-        if i == 0:  # Legend only on first subplot
-            ax.legend()
-
-    plt.xlabel('t')
-    plt.tight_layout()
-    plt.savefig(f'images/sde_simulation_{ckpt_path.stem}.png', dpi=300)
-    plt.show()
+    # Metrics
+    metrics = compute_metrics(y, ys)
+    print("Metrics:")
+    for k, v in metrics.items():
+        print(f"  {k}: {v:.6f}")
 
 
 if __name__ == '__main__':

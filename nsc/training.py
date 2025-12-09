@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import typing as t
 
+import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -85,6 +86,8 @@ class Trainer:
         else:
             self.wandb = None
 
+        self.loss_fn = nn.MSELoss() if cfg.loss == "mse" else nn.L1Loss()
+
         # checkpoint bookkeeping
         self.best_val = float('inf')
         self.ckpt_path = None
@@ -97,17 +100,16 @@ class Trainer:
         self.model.train()
         total_loss, total_reg_loss = 0.0, 0.0
         batches = 0
-        for ts_pad, y_pad, mask, x0 in self.train_loader:
+        for ts_pad, y_pad, x0 in self.train_loader:
             ts_pad = ts_pad.to(self.device)
             y_pad = y_pad.to(self.device)
-            mask = mask.to(self.device)
             x0 = x0.to(self.device)
 
             self.optimizer.zero_grad()
             x_sim = self.sdeint_fn(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
             x_sim = x_sim.transpose(0, 1)
 
-            mse_loss = masked_mse(x_sim, y_pad, mask, loss_fn=self.cfg.loss)
+            mse_loss = self.loss_fn(x_sim, y_pad)
             reg_loss = 0.0
             for param in self.model.parameters():
                 reg_loss += torch.norm(param, p=2) ** 2
@@ -136,15 +138,14 @@ class Trainer:
         total_loss = 0.0
         batches = 0
         with torch.no_grad():
-            for ts_pad, y_pad, mask, x0 in self.val_loader:
+            for ts_pad, y_pad, x0 in self.val_loader:
                 ts_pad = ts_pad.to(self.device)
                 y_pad = y_pad.to(self.device)
-                mask = mask.to(self.device)
                 x0 = x0.to(self.device)
 
                 x_sim = self.sdeint_fn(self.model, x0, ts_pad, method=self.cfg.method, dt=self.cfg.dt_num)
                 x_sim = x_sim.transpose(0, 1)
-                loss = masked_mse(x_sim, y_pad, mask, loss_fn=self.cfg.loss)
+                loss = self.loss_fn(x_sim, y_pad)
                 total_loss += float(loss.item())
                 batches += 1
 
