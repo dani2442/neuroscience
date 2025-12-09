@@ -53,9 +53,9 @@ class MLPSDE(nn.Module):
         self.drift = nn.Sequential(*layers)
 
         if noise_type=="additive":
-            self.C = nn.Parameter(torch.randn((state_size, brownian_size)))
+            self.B = nn.Parameter(torch.randn((state_size, brownian_size)))
         elif noise_type=="diagonal":
-            self.C = nn.Parameter(torch.randn(state_size))
+            self.B = nn.Parameter(torch.randn(state_size))
 
     def f(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         # apply drift pointwise over batch
@@ -63,16 +63,7 @@ class MLPSDE(nn.Module):
 
     def g(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         if self.noise_type == "additive":
-            return self.C.unsqueeze(0).expand(y.size(0), -1, -1)
+            return self.B.unsqueeze(0).expand(y.size(0), -1, -1)
         elif self.noise_type == "diagonal":
-            return self.C.unsqueeze(0).expand(y.size(0), -1)
+            return self.B.unsqueeze(0).expand(y.size(0), -1)
 
-
-
-def make_model(name: str, **kwargs) -> t.Callable:
-    name = name.lower()
-    if name == "linear":
-        return LinearSDE(**kwargs)
-    elif name in {"mlp", "mlpsde", "mlp_sde"}:
-        return MLPSDE(**kwargs)
-    raise ValueError(f"Unknown model name: {name}")

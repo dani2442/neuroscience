@@ -18,3 +18,17 @@ def set_seed(seed: int) -> None:
 	except Exception:
 		# torch might not be installed in the environment running static analysis
 		pass
+
+
+def make_model(name: str, **kwargs) -> t.Callable:
+    name = name.lower()
+    if name == "linear":
+        from nsc.nsde import LinearSDE
+        return LinearSDE(**kwargs)
+    elif name in {"mlp", "mlpsde", "mlp_sde"}:
+        from nsc.nsde import MLPSDE
+        return MLPSDE(**kwargs)
+    elif name in {"hopf", "hopf_coupled", "hopf_coupled_sde"}:
+        from .hopf import HopfCoupledSDE
+        return HopfCoupledSDE(**kwargs)
+    raise ValueError(f"Unknown model name: {name}")
