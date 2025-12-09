@@ -2,8 +2,6 @@
 
 Usage:
     python3 examples/train_sde.py
-
-Ensure required packages are installed (see pyproject.toml).
 """
 from pathlib import Path
 import argparse
