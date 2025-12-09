@@ -119,7 +119,7 @@ def main():
     # simple split
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=1, shuffle=True, collate_fn=train_ds.collate_fn)
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=1, shuffle=False, collate_fn=val_ds.collate_fn)
-    ts, y, mask, x0 = next(iter(val_loader))
+    ts, y, x0 = next(iter(val_loader))
 
     # Create BrownianInterval for multiple samples
     # repeat x0 to match n_samples

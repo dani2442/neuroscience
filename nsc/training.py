@@ -16,19 +16,6 @@ import torch.optim.lr_scheduler as lr_scheduler
 from .utils import set_seed
 
 
-def masked_mse(pred, target, mask, loss_fn: str = "mse") -> torch.Tensor:
-    if loss_fn == "mse":
-        diff = (pred - target) ** 2      # [B, T, F]
-    elif loss_fn == "mae":
-        diff = torch.abs(pred - target)  # [B, T, F]
-    else:
-        raise ValueError(f"Unsupported loss function: {loss_fn}")
-    
-    diff = diff.mean(dim=-1)         # [B, T]
-    diff = (diff * mask).mean(dim=-1)        # [B]
-    return diff.mean()        # [B]
-
-
 @dataclasses.dataclass
 class TrainerConfig:
     epochs: int = 50
