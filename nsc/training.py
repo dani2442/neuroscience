@@ -36,6 +36,7 @@ class TrainerConfig:
     lr_end: float = 1e-4
     method: str = "euler"
     dt: float = 1
+    model: str = "mlp"
     num_patients: int = 100
     dt_num: float = 0.1
     split: float = 0.8
