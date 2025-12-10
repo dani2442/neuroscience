@@ -28,7 +28,7 @@ class TrainerConfig:
     dt_num: float = 0.1
     split: float = 0.8
     state_size: int = 200
-    length_train: int = 10
+    length_train: int = 40
     length_val: int = 40
     reg_lambda: float = 1e-4
     batch_size: int = 32
@@ -180,7 +180,8 @@ class Trainer:
                 os.remove(self.best_model_path)
             
             # Save new best model
-            self.best_model_path = os.path.join(self.cfg.output_dir, f'best_model_{self.run_name}.pt')
+            timestamp = self.run_name.replace("run_", "")
+            self.best_model_path = os.path.join(self.cfg.output_dir, f'{self.cfg.model}_{val_loss:.6f}_{timestamp}.pt')
             torch.save({
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),

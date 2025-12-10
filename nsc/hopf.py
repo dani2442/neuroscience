@@ -19,8 +19,6 @@ class HopfCoupledSDE(nn.Module):
             self.B = nn.Parameter(torch.randn((state_size, brownian_size)))
         elif noise_type=="diagonal":
             self.B = nn.Parameter(torch.randn(state_size))
-
-        self.sde_type = "ito"
     
     def f(self, t, y):
         y_x = y[:, :self.num_osc]

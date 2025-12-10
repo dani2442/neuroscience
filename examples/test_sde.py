@@ -20,9 +20,8 @@ import torchsde
 from torchsde import BrownianInterval
 
 from nsc.dataset import TimeSeriesDataset
-from nsc.nsde import make_model
 from nsc.training import TrainerConfig
-from nsc.utils import plot_heatmap, plot_quantile_trajectories
+from nsc.utils import plot_heatmap, plot_quantile_trajectories, set_seed, make_model
 
 
 
@@ -72,7 +71,8 @@ def compute_metrics(y_true: np.ndarray, y_sim: np.ndarray) -> dict:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20250924-113704.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
+    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20251210-094539.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
+    parser.add_argument('--model', type=str, default='mlp', choices=['mlp', 'hopf'])
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
     parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -82,6 +82,7 @@ def main():
     args = parser.parse_args()
 
     device = torch.device(args.device)
+    set_seed(args.seed)
 
     ckpt_path = find_checkpoint(Path(args.ckpt))
     print(f"Using checkpoint: {ckpt_path}")
@@ -99,7 +100,7 @@ def main():
     cfg.device = device
 
     # create model architecture matching saved config
-    model = make_model('mlp', **cfg_dict)
+    model = make_model(args.model, **cfg_dict)
     model.to(device)
     #model = torch.compile(model)
     new_state_dict = {}
@@ -148,7 +149,7 @@ def main():
     plot_heatmap(mean_sim, ids)
 
     # Quantile plots for selected variables
-    plot_quantile_trajectories(ts, y, ys, ids, output_path=f'images/sde_simulation_{ckpt_path.stem}.png')
+    plot_quantile_trajectories(ts, y, ys, ids, output_path=f'images/sim_{args.model}_{ckpt_path.stem}.png')
 
     # Metrics
     metrics = compute_metrics(y, ys)
