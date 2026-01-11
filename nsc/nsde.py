@@ -5,6 +5,7 @@ import typing as t
 import torch
 import torch.nn as nn
 
+from .latent import LatentSDE
 
 class LinearSDE(nn.Module):
     def __init__(self, state_size: int, brownian_size: int, *args, **kwargs):
@@ -67,3 +68,14 @@ class MLPSDE(nn.Module):
         elif self.noise_type == "diagonal":
             return self.B.unsqueeze(0).expand(y.size(0), -1)
 
+
+
+def make_model(name: str, **kwargs) -> t.Callable:
+    name = name.lower()
+    if name == "linear":
+        return LinearSDE(**kwargs)
+    elif name in {"mlp", "mlpsde", "mlp_sde"}:
+        return MLPSDE(**kwargs)
+    elif name in {"latent", "latent_sde"}:
+        return LatentSDE(**kwargs)
+    raise ValueError(f"Unknown model name: {name}")

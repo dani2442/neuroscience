@@ -9,11 +9,12 @@ import torch
 
 from nsc.dataset import TimeSeriesDataset
 from nsc.utils import set_seed, make_model
-from nsc.training import Trainer, TrainerConfig
+from nsc.training import Trainer, TrainerConfig, LatentTrainer
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model-type", type=str, default="latent", choices=["mlp", "linear", "latent"])
     parser.add_argument("--data-dir", type=str, default="data_processed/ts_young/")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=800)
@@ -22,8 +23,8 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--lr-end", type=float, default=1e-3)
     parser.add_argument("--model", type=str, default="hopf", choices=["mlp", "hopf"])
-    parser.add_argument("--method", type=str, default='midpoint')
-    parser.add_argument("--sde-type", type=str, default="stratonovich", choices=["ito", "stratonovich"])
+    parser.add_argument("--method", type=str, default='euler')
+    parser.add_argument("--sde-type", type=str, default="ito", choices=["ito", "stratonovich"])
     parser.add_argument("--reg-lambda", type=float, default=1e-4)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--state-size", type=int, default=200)
@@ -43,6 +44,17 @@ def main():
     parser.add_argument("--loss", type=str, default="mae", choices=["mse", "mae"])
     parser.add_argument("--dt-num", type=float, default=0.1)
     parser.add_argument("--wandb_project", type=str, default="neuroscience", help="wandb project name (optional)")
+    parser.add_argument("--likelihood", type=str, default="laplace", choices=["laplace", "normal"])
+    parser.add_argument("--scale", type=float, default=0.05)
+    parser.add_argument("--kl-anneal-iters", type=int, default=1000)
+    parser.add_argument("--latent-hidden", type=int, default=200)
+    parser.add_argument("--latent-layers", type=int, default=2)
+    parser.add_argument("--prior-theta", type=float, default=1.0)
+    parser.add_argument("--prior-mu", type=float, default=0.0)
+    parser.add_argument("--prior-sigma", type=float, default=0.5)
+    parser.add_argument("--adaptive", type=bool, default=False)
+    parser.add_argument("--rtol", type=float, default=1e-3)
+    parser.add_argument("--atol", type=float, default=1e-3)
     args = parser.parse_args()
     dict_args = vars(args).copy()
 
@@ -56,12 +68,40 @@ def main():
     # load dataset on CPU for indexing; Trainer will move model/data to configured device
     train_ds, val_ds = TimeSeriesDataset.from_directory(cfg, pattern="timeseries_*.npy", max_num=args.num_patients)
     # simple split
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, collate_fn=train_ds.collate_fn)
-    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, collate_fn=val_ds.collate_fn)
+    collate_fn = TimeSeriesDataset.collate_fn
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, collate_fn=collate_fn)
+    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, collate_fn=collate_fn)
 
-    # infer state size from first sample
-    model = make_model(args.model, **dict_args)
-    model = torch.compile(model).to(cfg.device)
+    # build model
+    if args.model_type == "latent":
+        model = make_model(
+            "latent",
+            state_size=cfg.state_size,
+            theta=cfg.prior_theta,
+            mu=cfg.prior_mu,
+            sigma=cfg.prior_sigma,
+            hidden_size=cfg.latent_hidden,
+            hidden_layers=cfg.latent_layers,
+        ).to(cfg.device)
+    elif args.model_type == "linear":
+        model = make_model(
+            args.model_type,
+            state_size=cfg.state_size,
+            brownian_size=cfg.brownian_size,
+        )
+        model = torch.compile(model).to(cfg.device)
+    else:
+        model = make_model(
+            "mlp",
+            state_size=cfg.state_size,
+            brownian_size=cfg.brownian_size,
+            activation=cfg.activation,
+            hidden_size=cfg.hidden_size,
+            noise_type=cfg.noise_type,
+            sde_type=cfg.sde_type,
+            hidden_layers=cfg.hidden_layers,
+        )
+        model = torch.compile(model).to(cfg.device)
 
     if args.load_ckpt:
         chk = torch.load(args.load_ckpt, weights_only=True, map_location=args.device)
@@ -71,7 +111,11 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print("total number of paramers", total_params)
 
-    trainer = Trainer(model, train_loader, val_loader, cfg)
+    if args.model_type == "latent":
+        trainer = LatentTrainer(model, train_loader, val_loader, cfg)
+    else:
+        trainer = Trainer(model, train_loader, val_loader, cfg) 
+        
     trainer.fit(seed=args.seed)
 
 
