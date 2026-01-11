@@ -88,6 +88,9 @@ class TimeSeriesDataset(Dataset):
         y_list = [b[1] for b in batch]
         ts_pad, y_pad, mask = pad_and_mask(ts_list, y_list)
         return ts_pad, y_pad, mask
+<<<<<<< HEAD
+>>>>>>> 4fbdc7c (new)
+=======
 >>>>>>> 4fbdc7c (new)
     
 

@@ -8,7 +8,11 @@ import argparse
 import torch
 
 from nsc.dataset import TimeSeriesDataset
+<<<<<<< HEAD
 from nsc.utils import set_seed, make_model
+=======
+from nsc.model import make_model
+>>>>>>> 4fbdc7c (new)
 from nsc.training import Trainer, TrainerConfig, LatentTrainer
 
 
@@ -22,9 +26,14 @@ def main():
     parser.add_argument("--activation", type=str, default="tanh")
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--lr-end", type=float, default=1e-3)
+<<<<<<< HEAD
     parser.add_argument("--model", type=str, default="hopf", choices=["mlp", "hopf"])
     parser.add_argument("--method", type=str, default='euler')
     parser.add_argument("--sde-type", type=str, default="ito", choices=["ito", "stratonovich"])
+=======
+    parser.add_argument("--method", type=str, default='euler')
+    parser.add_argument("--sde-type", type=str, default="stratonovich")
+>>>>>>> 4fbdc7c (new)
     parser.add_argument("--reg-lambda", type=float, default=1e-4)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--state-size", type=int, default=200)
@@ -68,10 +77,22 @@ def main():
     # load dataset on CPU for indexing; Trainer will move model/data to configured device
     train_ds, val_ds = TimeSeriesDataset.from_directory(cfg, pattern="timeseries_*.npy", max_num=args.num_patients)
     # simple split
+<<<<<<< HEAD
     collate_fn = TimeSeriesDataset.collate_fn
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, collate_fn=collate_fn)
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, collate_fn=collate_fn)
 
+=======
+    collate_fn = TimeSeriesDataset.latent_collate_fn if args.model_type == "latent" else TimeSeriesDataset.collate_fn
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, collate_fn=collate_fn)
+    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, collate_fn=collate_fn)
+
+    # infer observed dimension from data for latent SDE
+    if args.model_type == "latent":
+        sample_ts, sample_y, _ = train_ds[0]
+        cfg.state_size = sample_y.shape[-1]
+
+>>>>>>> 4fbdc7c (new)
     # build model
     if args.model_type == "latent":
         model = make_model(
@@ -114,8 +135,12 @@ def main():
     if args.model_type == "latent":
         trainer = LatentTrainer(model, train_loader, val_loader, cfg)
     else:
+<<<<<<< HEAD
         trainer = Trainer(model, train_loader, val_loader, cfg) 
         
+=======
+        trainer = Trainer(model, train_loader, val_loader, cfg)
+>>>>>>> 4fbdc7c (new)
     trainer.fit(seed=args.seed)
 
 
