@@ -71,10 +71,24 @@ class TimeSeriesDataset(Dataset):
         ts = ts_list[0]
         ts = ts - ts[0] # Shift to start at 0
 
+<<<<<<< HEAD
         x0 = torch.cat([y_batch[:, 0, :], h_batch[:, 0, :]], dim=-1)
         y_batch = torch.cat([y_batch, h_batch], dim=-1)
         
         return ts, y_batch, x0
+=======
+        y_pad = torch.cat([y_pad_0, y_pad_1], dim=-1)
+        x0 = torch.cat([x0, y0], dim=-1)  # shape (B, 2d)
+        return ts_pad, y_pad, mask_0, x0
+
+    @staticmethod
+    def latent_collate_fn(batch):
+        """Collate function for latent SDE training (uses only the observed signal)."""
+        ts_list = [b[0] for b in batch]
+        y_list = [b[1] for b in batch]
+        ts_pad, y_pad, mask = pad_and_mask(ts_list, y_list)
+        return ts_pad, y_pad, mask
+>>>>>>> 4fbdc7c (new)
     
 
 

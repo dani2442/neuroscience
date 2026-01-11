@@ -15,6 +15,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 import torch.distributions as D
 
 from .utils import set_seed
+from .latent import LatentSDE
 
 
 def masked_mse(pred, target, mask, loss_fn: str = "mse") -> torch.Tensor:
@@ -285,19 +286,33 @@ class LatentTrainer:
         self.best_val = float('inf')
         os.makedirs(cfg.output_dir, exist_ok=True)
 
+<<<<<<< HEAD
     def _likelihood(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         likelihood = self.likelihood_constructor(loc=pred, scale=self.cfg.scale)
         log_prob = likelihood.log_prob(target).sum(dim=-1)  # (B, T)
         log_prob = log_prob.mean(dim=-1)  # (B,)
+=======
+    def _likelihood(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        likelihood = self.likelihood_constructor(loc=pred, scale=self.cfg.scale)
+        log_prob = likelihood.log_prob(target).sum(dim=-1)  # (B, T)
+        log_prob = (log_prob * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)
+>>>>>>> 4fbdc7c (new)
         return log_prob.mean()
 
     def train_epoch(self) -> float:
         self.model.train()
         total_loss = 0.0
         batches = 0
+<<<<<<< HEAD
         for ts_pad, y_pad, _ in self.train_loader:
             ts_pad = ts_pad.to(self.device)
             y_pad = y_pad.to(self.device)
+=======
+        for ts_pad, y_pad, mask in self.train_loader:
+            ts_pad = ts_pad.to(self.device)
+            y_pad = y_pad.to(self.device)
+            mask = mask.to(self.device)
+>>>>>>> 4fbdc7c (new)
             batch_size = y_pad.size(0)
 
             self.optimizer.zero_grad()
@@ -313,7 +328,11 @@ class LatentTrainer:
             )
             ys = ys.transpose(0, 1)  # (B, T, state)
 
+<<<<<<< HEAD
             logpy = self._likelihood(ys, y_pad)
+=======
+            logpy = self._likelihood(ys, y_pad, mask)
+>>>>>>> 4fbdc7c (new)
             loss = -logpy + kl * self.kl_scheduler.val
             if torch.isnan(loss) or torch.isinf(loss):
                 continue
@@ -340,9 +359,16 @@ class LatentTrainer:
         total_loss = 0.0
         batches = 0
         with torch.no_grad():
+<<<<<<< HEAD
             for ts_pad, y_pad, _ in self.val_loader:
                 ts_pad = ts_pad.to(self.device)
                 y_pad = y_pad.to(self.device)
+=======
+            for ts_pad, y_pad, mask in self.val_loader:
+                ts_pad = ts_pad.to(self.device)
+                y_pad = y_pad.to(self.device)
+                mask = mask.to(self.device)
+>>>>>>> 4fbdc7c (new)
                 batch_size = y_pad.size(0)
 
                 ys, kl = self.model(
@@ -356,7 +382,11 @@ class LatentTrainer:
                     atol=self.cfg.atol,
                 )
                 ys = ys.transpose(0, 1)
+<<<<<<< HEAD
                 logpy = self._likelihood(ys, y_pad)
+=======
+                logpy = self._likelihood(ys, y_pad, mask)
+>>>>>>> 4fbdc7c (new)
                 loss = -logpy + kl
 
                 total_loss += float(loss.item())
