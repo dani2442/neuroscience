@@ -33,6 +33,9 @@ def make_model(name: str, **kwargs) -> t.Callable:
     elif name in {"hopf", "hopf_coupled", "hopf_coupled_sde"}:
         from .hopf import HopfCoupledSDE
         return HopfCoupledSDE(**kwargs)
+    elif name in {"latent", "latent_sde"}:
+        from nsc.nsde import LatentSDE
+        return LatentSDE(**kwargs)
     raise ValueError(f"Unknown model name: {name}")
 
 
