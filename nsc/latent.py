@@ -38,6 +38,7 @@ class LatentSDE(torchsde.SDEIto):
         super().__init__(noise_type="diagonal")
         logvar = math.log(sigma ** 2 / (2.0 * theta))
         self.state_size = int(state_size)
+        self.num_osc = state_size // 2
 
         # Prior drift parameters.
         self.register_buffer("theta", torch.full((1, self.state_size), float(theta)))
@@ -57,6 +58,10 @@ class LatentSDE(torchsde.SDEIto):
         # Initialization trick from Glow.
         self.net[-1].weight.data.fill_(0.0)
         self.net[-1].bias.data.fill_(0.0)
+
+        self.a = nn.Parameter(torch.rand(self.num_osc), requires_grad=True)       # growth rate a_n
+        self.omega = nn.Parameter(torch.rand(self.num_osc), requires_grad=True)   # frequency ω_n
+        self.C = nn.Parameter(0.05+0.05*torch.rand((self.num_osc, self.num_osc)))
 
         # q(y0).
         self.qy0_mean = nn.Parameter(torch.full((1, self.state_size), float(mu)), requires_grad=True)
@@ -81,7 +86,22 @@ class LatentSDE(torchsde.SDEIto):
 
     def h(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Prior drift (Ornstein–Uhlenbeck)."""
-        return self.theta * (self.mu - y)
+        y_x = y[:, :self.num_osc]
+        y_y = y[:, self.num_osc:]
+
+        r2 = y_x**2 + y_y**2  # (batch, num_osc)
+
+        C_sum = self.C.sum(dim=0)  # (num_osc,)
+
+        coupling_x = y_x @ self.C - y_x * C_sum
+        coupling_y = y_y @ self.C - y_y * C_sum
+
+        dxdt = (self.a - r2) * y_x - self.omega * y_y + coupling_x / self.num_osc
+        dydt = (self.a - r2) * y_y + self.omega * y_x + coupling_y / self.num_osc
+
+        # Stack back into (batch, state_size)
+        dydt_full = torch.cat([dxdt, dydt], dim=-1)
+        return dydt_full
 
     def f_aug(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Drift for augmented dynamics with logqp term."""
