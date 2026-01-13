@@ -21,22 +21,22 @@ def main():
     parser.add_argument("--n-repeat", type=int, default=256)
     parser.add_argument("--activation", type=str, default="tanh")
     parser.add_argument("--lr", type=float, default=1e-2)
-    parser.add_argument("--lr-end", type=float, default=1e-3)
+    parser.add_argument("--lr-end", type=float, default=1e-2)
     parser.add_argument("--model", type=str, default="hopf", choices=["mlp", "hopf"])
-    parser.add_argument("--method", type=str, default='euler')
-    parser.add_argument("--sde-type", type=str, default="ito", choices=["ito", "stratonovich"])
+    parser.add_argument("--method", type=str, default='midpoint')
+    parser.add_argument("--sde-type", type=str, default="stratonovich", choices=["ito", "stratonovich"])
     parser.add_argument("--reg-lambda", type=float, default=1e-4)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--state-size", type=int, default=200)
-    parser.add_argument("--length-train", type=int, default=40)
-    parser.add_argument("--length-val", type=int, default=40)
+    parser.add_argument("--length-train", type=int, default=30)
+    parser.add_argument("--length-val", type=int, default=30)
     parser.add_argument("--adjoint", type=bool, default=False)
     parser.add_argument("--split", type=float, default=0.8)
     parser.add_argument("--brownian-size", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--hidden-layers", type=int, default=2)
-    parser.add_argument("--load_ckpt", type=str, default=None)#"runs/best_model_run_20250924-143800.pt")
-    parser.add_argument("--hidden-size", type=int, default=512)
+    parser.add_argument("--load_ckpt", type=str, default="runs/best_model_run_20260113-145456.pt")
+    parser.add_argument("--hidden-size", type=int, default=128)
     parser.add_argument("--noise-type", type=str, default="diagonal", choices=["diagonal", "additive", "general"])
     parser.add_argument("--dt", type=float, default=1.0)
     parser.add_argument("--num-patients", type=int, default=1)
@@ -82,6 +82,7 @@ def main():
             sigma=cfg.prior_sigma,
             hidden_size=cfg.latent_hidden,
             hidden_layers=cfg.latent_layers,
+            sde_type=cfg.sde_type,
         ).to(cfg.device)
     elif args.model_type == "linear":
         model = make_model(

@@ -18,7 +18,7 @@ def _stable_division(a: torch.Tensor, b: torch.Tensor, epsilon: float = 1e-7) ->
     return a / b_safe
 
 
-class LatentSDE(torchsde.SDEIto):
+class LatentSDE(nn.Module):
     """Latent SDE with learnable approximate posterior drift and prior Ornstein–Uhlenbeck drift.
 
     The implementation follows the reference example in `examples/latent_sde.py`, but it is
@@ -33,12 +33,15 @@ class LatentSDE(torchsde.SDEIto):
         sigma: float = 0.5,
         hidden_size: int = 200,
         hidden_layers: int = 2,
+        sde_type: str = "ito",
         **kwargs,
     ):
-        super().__init__(noise_type="diagonal")
+        super().__init__()
         logvar = math.log(sigma ** 2 / (2.0 * theta))
         self.state_size = int(state_size)
         self.num_osc = state_size // 2
+        self.noise_type="diagonal"
+        self.sde_type = sde_type
 
         # Prior drift parameters.
         self.register_buffer("theta", torch.full((1, self.state_size), float(theta)))

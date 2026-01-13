@@ -12,67 +12,28 @@ This script will:
 """
 from pathlib import Path
 import argparse
-import math
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 import torchsde
 from torchsde import BrownianInterval
 
 from nsc.dataset import TimeSeriesDataset
 from nsc.training import TrainerConfig
-from nsc.utils import plot_heatmap, plot_quantile_trajectories, set_seed, make_model
-
-
-
-def find_checkpoint(path: Path) -> Path:
-    # prefer explicit file, otherwise pick the latest best_epoch_*.pt in the directory
-    if path.is_file():
-        return path
-    pts = sorted(path.glob('best_model*.pt'))
-    if not pts:
-        raise SystemExit(f"No checkpoint files found in: {path}")
-    return pts[-1]
-
-
-def compute_metrics(y_true: np.ndarray, y_sim: np.ndarray) -> dict:
-    """Compute MSE and KL (approx via NLL) for different time intervals.
-    
-    Args:
-        y_true: (1, T, D)
-        y_sim: (S, T, D)
-    """
-    T = y_true.shape[1]
-    # Define intervals
-    intervals = {
-        'short': slice(0, T // 3),
-        'med': slice(T // 3, 2 * T // 3),
-        'long': slice(2 * T // 3, T),
-        'full': slice(0, T)
-    }
-    
-    metrics = {}
-    mu_sim = y_sim.mean(axis=0) # (T, D)
-    std_sim = y_sim.std(axis=0) + 1e-6 # (T, D)
-    
-    for name, sl in intervals.items():
-        # MSE: || mu_sim - y_true ||^2
-        mse = np.mean((mu_sim[sl] - y_true[0, sl])**2)
-        metrics[f'mse_{name}'] = mse
-        
-        # KL approx (NLL): -log N(y_true | mu_sim, std_sim)
-        # = 0.5 * log(2pi) + log(sigma) + 0.5 * ((y - mu)/sigma)^2
-        nll = 0.5 * np.log(2 * np.pi) + np.log(std_sim[sl]) + \
-              0.5 * ((y_true[0, sl] - mu_sim[sl]) / std_sim[sl])**2
-        metrics[f'kl_{name}'] = np.mean(nll)
-        
-    return metrics
+from nsc.utils import (
+    compute_metrics,
+    find_checkpoint,
+    make_model,
+    plot_heatmap,
+    plot_quantile_trajectories,
+    set_seed,
+)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20251210-094539.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
-    parser.add_argument('--model', type=str, default='mlp', choices=['mlp', 'hopf'])
+    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20260113-153621.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
+    parser.add_argument('--model', type=str, default='mlp', choices=['mlp', 'hopf', 'linear', 'latent'])
+    parser.add_argument('--model-type', type=str, choices=['mlp', 'hopf', 'linear', 'latent'], help='Override model type; otherwise inferred from checkpoint cfg or --model')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
     parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -88,19 +49,32 @@ def main():
     print(f"Using checkpoint: {ckpt_path}")
 
     chk = torch.load(ckpt_path, weights_only=False, map_location=device)
-    state_dict, cfg_dict = chk["model_state_dict"], chk.get("cfg", None)
+    state_dict, cfg_dict = chk["model_state_dict"], chk.get("cfg") or {}
 
     # Build a TrainerConfig from saved cfg when available; else use defaults
+    cfg_dict = dict(cfg_dict)  # shallow copy so we can tweak without side effects
     cfg_dict['length_train'] = 150
     cfg_dict['length_val'] = 150
-    if cfg_dict:
-        cfg = TrainerConfig(**cfg_dict)
-    else:
-        cfg = TrainerConfig()
+    cfg = TrainerConfig(**cfg_dict)
     cfg.device = device
 
+    model_type = (args.model_type or cfg_dict.get("model_type") or args.model).lower()
+    print(f"Detected model type: {model_type}")
+
     # create model architecture matching saved config
-    model = make_model(args.model, **cfg_dict)
+    if model_type == "latent":
+        model = make_model(
+            "latent",
+            state_size=cfg.state_size,
+            theta=cfg.prior_theta,
+            mu=cfg.prior_mu,
+            sigma=cfg.prior_sigma,
+            hidden_size=cfg.latent_hidden,
+            hidden_layers=cfg.latent_layers,
+            sde_type=cfg.sde_type,
+        )
+    else:
+        model = make_model(model_type, **cfg_dict)
     model.to(device)
     #model = torch.compile(model)
     new_state_dict = {}
@@ -122,20 +96,32 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=1, shuffle=False, collate_fn=val_ds.collate_fn)
     ts, y, x0 = next(iter(val_loader))
 
-    # Create BrownianInterval for multiple samples
-    # repeat x0 to match n_samples
-    x0_batch = x0.repeat(args.n_samples, 1)
-    if cfg.noise_type=='diagonal':
-        size = (args.n_samples, cfg.state_size)
-    else:
-        size = (args.n_samples, cfg.brownian_size)
-    bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=size, device=device, dt=cfg.dt, levy_area_approximation="space-time")
+    sdeint_fn = torchsde.sdeint_adjoint if getattr(cfg, "adjoint", False) else torchsde.sdeint
 
     with torch.no_grad():
         ts = ts.to(device)
         y = y.to(device)
-        x0_batch = x0_batch.to(device)
-        y_sim = torchsde.sdeint(model, x0_batch, ts, bm=bm, dt=cfg.dt_num)
+        if model_type == "latent":
+            # Sample from the learned approximate posterior (same path KL objective as training)
+            y_sim, _ = model(
+                ts=ts,
+                batch_size=args.n_samples,
+                sdeint_fn=sdeint_fn,
+                method=cfg.method,
+                dt=cfg.dt_num,
+                adaptive=getattr(cfg, "adaptive", False),
+                rtol=getattr(cfg, "rtol", 1e-3),
+                atol=getattr(cfg, "atol", 1e-3),
+            )
+        else:
+            # Create BrownianInterval for multiple samples
+            x0_batch = x0.repeat(args.n_samples, 1).to(device)
+            if cfg.noise_type == 'diagonal':
+                size = (args.n_samples, cfg.state_size)
+            else:
+                size = (args.n_samples, cfg.brownian_size)
+            bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=size, device=device, dt=cfg.dt, levy_area_approximation="space-time")
+            y_sim = sdeint_fn(model, x0_batch, ts, bm=bm, dt=cfg.dt_num, method=cfg.method)
     ys = y_sim.cpu().numpy()
     # Transpose to (S, T, D) for easier handling
     ys = np.transpose(ys, (1, 0, 2))
@@ -145,11 +131,11 @@ def main():
     mean_sim = ys.mean(axis=0)  # (T, d)
 
     # heatmap of mean simulated vs ground truth for first few dims
-    ids = np.arange(0, 90, 10)
-    plot_heatmap(mean_sim, ids)
+    ids = np.arange(0, min(90, mean_sim.shape[1]), 10)
+    #plot_heatmap(mean_sim, ids)
 
     # Quantile plots for selected variables
-    plot_quantile_trajectories(ts, y, ys, ids, output_path=f'images/sim_{args.model}_{ckpt_path.stem}.png')
+    plot_quantile_trajectories(ts, y, ys, ids, output_path=f'images/sim_{model_type}_{ckpt_path.stem}.png')
 
     # Metrics
     metrics = compute_metrics(y, ys)
