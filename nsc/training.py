@@ -15,7 +15,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 import torch.distributions as D
 
 from .utils import set_seed
-from .metrics import wasserstein_loss_1d
+from .metrics import wasserstein_loss_1d, diff_phFCD
 from .latent import LatentSDE
 
 
@@ -131,12 +131,20 @@ class Trainer:
         else:
             self.wandb = None
 
+        def loss_fn(pred, target):
+            with torch.no_grad():
+                t = diff_phFCD(target)
+            return wasserstein_loss_1d(diff_phFCD(pred), t)
+
         if cfg.loss=="mse":
             self.loss_fn = nn.MSELoss()
         elif cfg.loss=="mae":
             self.loss_fn = nn.L1Loss()
         elif cfg.loss=="ks":
-            self.loss_fn = wasserstein_loss_1d
+            self.loss_fn = loss_fn
+        elif cfg.loss=="ks+mae":
+            self.loss_fn2 = nn.L1Loss()
+            self.loss_fn = lambda pred, target: 2*loss_fn(pred, target) + self.loss_fn2(pred, target)
         # checkpoint bookkeeping
         self.best_val = float('inf')
         self.ckpt_path = None
@@ -228,6 +236,15 @@ class Trainer:
             self._save_best_model(epoch, val_loss)
             self.scheduler.step()
 
+        best_training = os.path.join(self.cfg.output_dir, f'last_{self.cfg.model_type}_{epoch:03d}_{val_loss:.6f}.pt')
+        torch.save({
+                'model_state_dict': self.model.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'epoch': epoch,
+                'val_loss': val_loss,
+                'cfg': dataclasses.asdict(self.cfg),
+            }, best_training)
+
     def _save_best_model(self, epoch: int, val_loss: float):
         """Save model if it's the best validation loss so far."""
         if not (self.cfg.save_best and self.val_loader is not None):
@@ -242,7 +259,7 @@ class Trainer:
             
             # Save new best model
             timestamp = self.run_name.replace("run_", "")
-            self.best_model_path = os.path.join(self.cfg.output_dir, f'{self.cfg.model_type}_{val_loss:.6f}_{timestamp}.pt')
+            self.best_model_path = os.path.join(self.cfg.output_dir, f'{self.cfg.model_type}_{epoch:03d}_{val_loss:.6f}_{timestamp}.pt')
             torch.save({
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),

@@ -52,6 +52,7 @@ def diff_phFCD(ts, window_size=3):
     """
     Vectorized, differentiable Phase FCD.
     """
+    ts = ts.permute(0,2,1)  # (Batch, N, T)
     batch, N, Tmax = ts.shape
     
     # 1. Get Phase Interaction Matrix

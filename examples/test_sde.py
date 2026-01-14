@@ -31,7 +31,7 @@ from nsc.utils import (
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str, default='runs/hopf_0.188578_20260114-152642.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
+    parser.add_argument('--ckpt', type=str, default='runs/mlp_132_0.210340_20260114-161612.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
     parser.add_argument('--model-type', type=str, choices=['mlp', 'hopf', 'linear', 'latent'], help='Override model type; otherwise inferred from checkpoint cfg or --model')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
     parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
