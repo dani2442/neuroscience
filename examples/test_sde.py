@@ -31,8 +31,7 @@ from nsc.utils import (
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str, default='runs/best_model_run_20260113-153621.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
-    parser.add_argument('--model', type=str, default='mlp', choices=['mlp', 'hopf', 'linear', 'latent'])
+    parser.add_argument('--ckpt', type=str, default='runs/hopf_0.188578_20260114-152642.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
     parser.add_argument('--model-type', type=str, choices=['mlp', 'hopf', 'linear', 'latent'], help='Override model type; otherwise inferred from checkpoint cfg or --model')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
     parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
@@ -62,19 +61,7 @@ def main():
     print(f"Detected model type: {model_type}")
 
     # create model architecture matching saved config
-    if model_type == "latent":
-        model = make_model(
-            "latent",
-            state_size=cfg.state_size,
-            theta=cfg.prior_theta,
-            mu=cfg.prior_mu,
-            sigma=cfg.prior_sigma,
-            hidden_size=cfg.latent_hidden,
-            hidden_layers=cfg.latent_layers,
-            sde_type=cfg.sde_type,
-        )
-    else:
-        model = make_model(model_type, **cfg_dict)
+    model = make_model(**cfg_dict)
     model.to(device)
     #model = torch.compile(model)
     new_state_dict = {}

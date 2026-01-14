@@ -15,6 +15,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 import torch.distributions as D
 
 from .utils import set_seed
+from .metrics import wasserstein_loss_1d
 from .latent import LatentSDE
 
 
@@ -68,7 +69,6 @@ class TrainerConfig:
     lr_end: float = 1e-4
     method: str = "euler"
     dt: float = 1
-    model: str = "mlp"
     num_patients: int = 100
     dt_num: float = 0.1
     split: float = 0.8
@@ -98,6 +98,7 @@ class TrainerConfig:
     likelihood: str = "laplace"
     scale: float = 0.05
     kl_anneal_iters: int = 1000
+    model: str = "mlp"
     latent_hidden: int = 200
     latent_layers: int = 2
     prior_theta: float = 1.0
@@ -130,8 +131,12 @@ class Trainer:
         else:
             self.wandb = None
 
-        self.loss_fn = nn.MSELoss() if cfg.loss == "mse" else nn.L1Loss()
-
+        if cfg.loss=="mse":
+            self.loss_fn = nn.MSELoss()
+        elif cfg.loss=="mae":
+            self.loss_fn = nn.L1Loss()
+        elif cfg.loss=="ks":
+            self.loss_fn = wasserstein_loss_1d
         # checkpoint bookkeeping
         self.best_val = float('inf')
         self.ckpt_path = None
@@ -237,7 +242,7 @@ class Trainer:
             
             # Save new best model
             timestamp = self.run_name.replace("run_", "")
-            self.best_model_path = os.path.join(self.cfg.output_dir, f'{self.cfg.model}_{val_loss:.6f}_{timestamp}.pt')
+            self.best_model_path = os.path.join(self.cfg.output_dir, f'{self.cfg.model_type}_{val_loss:.6f}_{timestamp}.pt')
             torch.save({
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),

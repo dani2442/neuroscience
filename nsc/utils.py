@@ -25,21 +25,21 @@ def set_seed(seed: int) -> None:
         pass
 
 
-def make_model(name: str, **kwargs) -> t.Callable:
-    name = name.lower()
-    if name == "linear":
+def make_model(model_type: str, *args, **kwargs) -> t.Callable:
+    model_type = model_type.lower()
+    if model_type == "linear":
         from nsc.nsde import LinearSDE
         return LinearSDE(**kwargs)
-    elif name in {"mlp", "mlpsde", "mlp_sde"}:
+    elif model_type in {"mlp", "mlpsde", "mlp_sde"}:
         from nsc.nsde import MLPSDE
         return MLPSDE(**kwargs)
-    elif name in {"hopf", "hopf_coupled", "hopf_coupled_sde"}:
+    elif model_type in {"hopf", "hopf_coupled", "hopf_coupled_sde"}:
         from .hopf import HopfCoupledSDE
         return HopfCoupledSDE(**kwargs)
-    elif name in {"latent", "latent_sde"}:
+    elif model_type in {"latent", "latent_sde"}:
         from nsc.nsde import LatentSDE
         return LatentSDE(**kwargs)
-    raise ValueError(f"Unknown model name: {name}")
+    raise ValueError(f"Unknown model name: {model_type}")
 
 
 def plot_heatmap(mean_sim: np.ndarray, ids: np.ndarray, show: bool = True) -> None:
