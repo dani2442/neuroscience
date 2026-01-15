@@ -144,7 +144,7 @@ class Trainer:
             self.loss_fn = loss_fn
         elif cfg.loss=="ks+mae":
             self.loss_fn2 = nn.L1Loss()
-            self.loss_fn = lambda pred, target: 2*loss_fn(pred, target) + self.loss_fn2(pred, target)
+            self.loss_fn = lambda pred, target: 5*loss_fn(pred, target) + 0.5*self.loss_fn2(pred, target)
         # checkpoint bookkeeping
         self.best_val = float('inf')
         self.ckpt_path = None

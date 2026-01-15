@@ -34,7 +34,7 @@ def main():
     parser.add_argument('--ckpt', type=str, default='runs/mlp_132_0.210340_20260114-161612.pt', help='Checkpoint file or directory containing best_epoch_*.pt')
     parser.add_argument('--model-type', type=str, choices=['mlp', 'hopf', 'linear', 'latent'], help='Override model type; otherwise inferred from checkpoint cfg or --model')
     parser.add_argument('--data-dir', type=str, default='data_processed/ts_young/')
-    parser.add_argument('--n-samples', type=int, default=5, help='Number of stochastic sample paths to simulate')
+    parser.add_argument('--n-samples', type=int, default=3, help='Number of stochastic sample paths to simulate')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument("--num-patients", type=int, default=1)
