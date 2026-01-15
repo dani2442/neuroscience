@@ -11,14 +11,14 @@ class HopfCoupledSDE(nn.Module):
         self.num_osc = state_size // 2
         
         # Parameters for each oscillator
-        self.a = nn.Parameter(1+0.*torch.rand(self.num_osc), requires_grad=True)       # growth rate a_n
-        self.omega = nn.Parameter(1+0.*torch.rand(self.num_osc), requires_grad=True)   # frequency ω_n
-        self.C = nn.Parameter(0.0*torch.rand((self.num_osc, self.num_osc)))
+        self.a = nn.Parameter(torch.rand(self.num_osc), requires_grad=True)       # growth rate a_n
+        self.omega = nn.Parameter(torch.rand(self.num_osc), requires_grad=True)   # frequency ω_n
+        self.C = nn.Parameter(0.05+0.05*torch.rand((self.num_osc, self.num_osc)))
 
         if noise_type=="additive":
-            self.B = nn.Parameter(0.0*torch.randn((state_size, brownian_size)))
+            self.B = nn.Parameter(torch.randn((state_size, brownian_size)))
         elif noise_type=="diagonal":
-            self.B = nn.Parameter(0.0*torch.randn(state_size))
+            self.B = nn.Parameter(torch.randn(state_size))
     
     def f(self, t, y):
         y_x = y[:, :self.num_osc]
